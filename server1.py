@@ -5,7 +5,7 @@ import time
 import random 
 host = '127.0.0.1'
 port = 55555
-
+import sys
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
 server.listen()
@@ -24,7 +24,7 @@ def handle_client(client_socket, client_address):
             client_socket.send('menu'.encode('ascii'))
             
             message = client_socket.recv(1024).decode()
-            print("i am right as usual")
+            #print("i am right as usual")
             if not message:
                 break
 
@@ -36,7 +36,7 @@ def handle_client(client_socket, client_address):
             elif message == 'random_match':
                 
                 handle_random_match(client_socket,client_address)
-                print("coucou")
+                #print("coucou")
             elif message == 'send_invite':
                 handle_invite(client_socket,client_address)
                 pass
@@ -46,25 +46,43 @@ def handle_client(client_socket, client_address):
             elif message == "view_rankings":
                
                 view_rankings(client_socket);
-                print("Hey")
+                #print("Hey")
             elif message == 'Tournoi':
                 start_tournoi(client_socket,client_address)
-                print("Im here ",{client_address})
-                
+                #print("Im here ",{client_address})
+                #print(user_credentials[client_address])
+            
+            elif message == 'see':
+                see_result(client_socket,client_address)
+                #print(user_credentials[client_address])
                 
                 
             elif message == 'quit':
-                print(user_credentials[client_address]["status"])
+                #print(user_credentials[client_address]["status"])
                 user_credentials[client_address]["status"] = "Offline"
-                print(user_credentials[client_address]["status"])
+                #print(user_credentials[client_address]["status"])
                 break
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            #print(f"An error occurred: {e}")
+            pass
 
     client_socket.close()
     user_credentials[client_address]["status"]= "Offline"
     print(f"Connection closed from {client_address}")
+
+def see_result(client, username):
+    if user_credentials[username]["result"] is not None and user_credentials[username]["Invite_statuts"] == "Done":
+        client.send(f"\033[34mResult of your last invited game against {user_credentials[username]['Invt_From']} : {user_credentials[username]['result']}\033[0m".encode('ascii'))
+
+        client.send("\033[32mclearing the game...\033[0m".encode('ascii'))
+
+        user_credentials[username]["Invt_From"] = None
+        user_credentials[username]["Invite_statuts"] = None
+        user_credentials[username]["last_attempt"] = None
+   
+
+
 
 
 def handle_invite(client,username):
@@ -73,30 +91,72 @@ def handle_invite(client,username):
         client.send("invite".encode('ascii'))
         invitee=client.recv(1024).decode()
         if invitee in user_credentials and user_credentials[invitee]["client"] is not None:
-            print("here")
+            #print("here")
             user_credentials[username]["Invt_To"] = invitee
             user_credentials[username]["Invite_statuts"] ="Pending"
             client.send("Match".encode('ascii'))
             last=client.recv(1024).decode()
             user_credentials[username]["last_attempt"] =last
             user_credentials[invitee]["Invt_From"] =username
-        else:
-            print("he doesnt exist ")
+       
     else :
-        client.send("Please let them  accept ur invitation then try again ".encode("ascii"))
+        client.send("\033[31mPlease let them accept your invitation then try again\033[0m".encode("ascii"))
+
     print(user_credentials[username]["last_attempt"])
         
-def accept_invite(client,username):
-    client.send(f"ur invitations are from {user_credentials[username]['Invt_From']}".encode('ascii'))
+def accept_invite(client, username):
+    try:
+        invite_from = user_credentials[username]['Invt_From']
+        client.send(f"Your invitations are from {invite_from}".encode('ascii'))
 
-    client.send("Match".encode('ascii'))
-    chance1= client.recv(1024).decode()
-    user_credentials[username]['last_attempt']=chance1
-    print('chance', chance1)
-    chance2=user_credentials[user_credentials[username]['Invt_From']]['last_attempt']
-    print(chance2)
-    result= compare_choices(chance1,chance2)
-    print(result)
+        client.send("Match".encode('ascii'))
+        chance1 = client.recv(1024).decode()
+        user_credentials[username]['last_attempt'] = chance1
+        #print('chance1', chance1)
+
+        # Check if 'Invt_From' exists and has a valid user
+        if invite_from not in user_credentials:
+            print(f"Invite from user '{invite_from}' does not exist.")
+            return
+
+        chance2 = user_credentials[invite_from]['last_attempt']
+        #print('chance2', chance2)
+
+        result = compare_choices(chance1, chance2)
+        if result == 0:
+            user_credentials[invite_from]['result'] = "It's a tie"
+            user_credentials[username]['result'] = "It's a tie"
+            user_credentials[username]['score'] += 2
+            user_credentials[invite_from]['score'] += 2
+        elif result == 1:
+            user_credentials[invite_from]['result'] = "You lost!"
+            user_credentials[username]['result'] = "You won!"
+            user_credentials[username]['score'] += 5
+            user_credentials[invite_from]['score'] -= 2
+        elif result == -1:
+            user_credentials[invite_from]['result'] = "You won!"
+            user_credentials[username]['result'] = "You lost!"
+            user_credentials[username]['score'] -= 2
+            user_credentials[invite_from]['score'] += 5
+
+        #print("im here")
+
+        user_credentials[username]["Invite_statuts"] = "Done"
+        user_credentials[invite_from]["Invite_statuts"] = "Done"
+        user_credentials[invite_from]["Invt_To"] = None
+        print(user_credentials[username]["Invite_statuts"])
+
+    except KeyError as e:
+        #print(f"KeyError: {e}")
+        pass
+    except Exception as e:
+        #print(f"An error occurred: {e}")
+        pass
+
+# You can also add specific prints before each critical operation to trace exactly where it fails.
+
+    
+
 def display_tournament(tournoi,client):
    for users in tournoi:
        print(f"Tournant : {users}")
@@ -105,7 +165,7 @@ def display_tournament(tournoi,client):
 def start_tournoi(client, username):
         display_tournament(tournoi,client)
         start_game=0
-        print(username)
+        #print(username)
    
         client.send("join_tournament".encode('ascii'))
         choice = client.recv(1024).decode()
@@ -116,7 +176,7 @@ def start_tournoi(client, username):
                 client.send(f"You have successfully joined {1}".encode('ascii'))
                 while len(tournoi)<5: #2
                     continue
-                print("hey")
+                #print("hey")
                 tournoi.clear()
             elif len(tournoi)==3 : #1
                 tournoi.append(username)
@@ -191,11 +251,19 @@ def start_tournoi(client, username):
                         break
 
 
-                client1.send(f"Winner is {winner3}".encode('ascii'))
-                client2.send(f"Winner is {winner3}".encode('ascii'))
-                client3.send(f"Winner is {winner3}".encode('ascii'))
-                client4.send(f"Winner is {winner3}".encode('ascii'))
+                '''client1.send(f"Winner is {winner3} he won 10 points".encode('ascii'))
+                client2.send(f"Winner is {winner3} he won 10 points".encode('ascii'))
+                client3.send(f"Winner is {winner3} he won 10 points".encode('ascii'))
+                client4.send(f"Winner is {winner3} he won 10 points".encode('ascii'))'''
+                red_text = f"\033[31mWinner is {winner3} he won 10 points\033[0m"
+                client1.send(red_text.encode('ascii'))
+                client2.send(red_text.encode('ascii'))
+                client3.send(red_text.encode('ascii'))
+                client4.send(red_text.encode('ascii'))
 
+                
+                user_credentials[winner3]['score']+=10
+                    
                 
                 tournoi.append("NEW")
                     
@@ -286,13 +354,13 @@ def handle_random_match(client_socket,username):
         print("Sending Match to Client 2")
         client_socket2.send("Match".encode('ascii'))
 
-        print(client_socket1)
-        print(client_socket2)
+        #print(client_socket1)
+        #print(client_socket2)
 
         # Wait for choice from client_socket1
         print("Waiting for choice from Client 1...")
         choice1 = client_socket1.recv(1024).decode()
-        print(f"Choice 1: {choice1}")
+        #print(f"Choice 1: {choice1}")
 
         print(client_socket1)
         print(client_socket2)
@@ -300,7 +368,7 @@ def handle_random_match(client_socket,username):
         # Wait for choice from client_socket2
         print("Waiting for choice from Client 2...")
         choice2 = client_socket2.recv(1024).decode()
-        print(f"Choice 2: {choice2}")
+        #print(f"Choice 2: {choice2}")
 
         if choice1 == choice2:
             result = "It's a tie!"
@@ -310,22 +378,21 @@ def handle_random_match(client_socket,username):
             result = "Client 2 wins!"
         #threading.Thread(target=handle_client, args=(client_socket1, "Client 1")).start()
         if result == "Client 1 wins!":
-
-            client_socket1.send("You WON YEY".encode('ascii'))
-            client_socket2.send("You lost :(".encode('ascii'))
-            user_credentials[username1]['score'] +=5
+            client_socket1.send("\033[32mYou WON YEY\033[0m".encode('ascii'))
+            client_socket2.send("\033[31mYou lost :(\033[0m".encode('ascii'))
+            user_credentials[username1]['score'] += 5
             user_credentials[username2]['score'] -= 2
         elif result == "Client 2 wins!":
-            
-            client_socket1.send("You lost :(".encode('ascii'))
-            client_socket2.send("You WON YEY".encode('ascii'))
-            user_credentials[username1]['score'] +=5
+            client_socket1.send("\033[31mYou lost :(\033[0m".encode('ascii'))
+            client_socket2.send("\033[32mYou WON YEY\033[0m".encode('ascii'))
+            user_credentials[username1]['score'] += 5
             user_credentials[username2]['score'] -= 2
         else:
             client_socket1.send(result.encode('ascii'))
             client_socket2.send(result.encode('ascii'))
-            user_credentials[username1]['score'] +=1
+            user_credentials[username1]['score'] += 1
             user_credentials[username2]['score'] += 1
+
         queue.append("coucou")
         queue.append("hello")
             
@@ -381,7 +448,26 @@ def start():
                     threading.Thread(target=handle_client, args=(client_socket, username)).start()
         
         except Exception as e:
-            print(f"An error occurred: {e}")
+            
             client_socket.close()
 
+def shutdown_server():
+    print("Server is shutting down...")
+    for client in clients:
+        client.close()  
+    server.close()
+    sys.exit() 
+
+
+def listen_for_shutdown():
+    while True:
+        
+        command = input()
+        if command == '/shutdown':
+            print("Shutdown command received from server console.")
+            shutdown_server()
+            break  
+
+command_thread = threading.Thread(target=listen_for_shutdown)
+command_thread.start()
 start()

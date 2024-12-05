@@ -11,6 +11,7 @@ def display_menu():
     print("4. View Player Rankings")
     print("5. Tournant")
     print("6. Quit")
+    print("7.see result of invite (clear invitation)")
     choice = input("Enter your choice: ")
     return int(choice)
 
@@ -31,6 +32,8 @@ def handle_choice(choice):
         client.send(b'quit')
         client.close()
         exit()
+    elif choice ==7:
+        client.send(b'see')
 
 def receive():
     while True:
